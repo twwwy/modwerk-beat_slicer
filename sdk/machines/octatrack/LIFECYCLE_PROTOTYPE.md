@@ -52,3 +52,14 @@ proved by this witness. It is not a portable project metadata service.
 Hardware callbacks/timing, interrupted storage, all restore failure paths and
 other contributors remain unqualified. No firmware, packages or snapshots are
 committed here.
+
+## Separate follow-up before submission
+
+Offered as **Improvement: fingerprint lifecycle ABI headers in base builds**:
+`build_core.py` copies the new lifecycle header but does not explicitly include
+that header in its input fingerprint list. Add it before submitting this base
+extension, then rebuild/requalify the resulting base identity. The current
+private prototype receipts bind the actual MAIN/package hashes and the frozen
+header used; they do not establish this future input-fingerprinting behavior.
+No PR has been opened or authorized. Keep this shared build change outside the
+sample-lock module's eventual PR.
