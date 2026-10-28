@@ -1,7 +1,8 @@
 # Local owner lifecycle prototype
 
 Unpublished base extension on `prototype/module-lifecycle-base`, separate from
-any module release. No PR, push or physical testing is authorized in this session.
+any module release. A source backup to twwwy/modwerk-beat_slicer is authorized;
+no upstream PR, release or physical testing is authorized.
 
 `ot_module_lifecycle` is table index 37. A contributing module supplies one
 four-byte descriptor pointing into its own initialized image. Admission checks
@@ -63,3 +64,10 @@ private prototype receipts bind the actual MAIN/package hashes and the frozen
 header used; they do not establish this future input-fingerprinting behavior.
 No PR has been opened or authorized. Keep this shared build change outside the
 sample-lock module's eventual PR.
+
+## Fork backup after upstream merge
+
+Current upstream main (`d2cb12d6`) was merged for the fork-only push. The one
+conflict was generated `runtime_events.h`; it was regenerated from the merged
+event registry. Recorded emulator/native-build evidence above remains bound to
+the earlier exact base hash, not a new build of this merged SDK.
