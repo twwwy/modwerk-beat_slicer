@@ -1650,6 +1650,7 @@ def main():
         (source / 'dev.c').write_text(dev_engines.dev((source / 'dev.c').read_text()))
     if args.site_events:  # the tables' records (struct modwerk_machine, struct modwerk_sequencer_rows)
         shutil.copyfile(APP / 'sdk/machines/octatrack/include/modwerk_events.h', source / 'modwerk_events.h')
+        shutil.copyfile(APP / 'sdk/machines/octatrack/include/modwerk_lifecycle.h', source / 'modwerk_lifecycle.h')
     # The startup (boot_anim.c) draws the art the shared startup sources describe, with this base's version.
     spec = importlib.util.spec_from_file_location('modwerk_base_art', APP / 'sdk/runtime/startup/base_art.py')
     base_art = importlib.util.module_from_spec(spec); spec.loader.exec_module(base_art)

@@ -274,3 +274,9 @@ unsigned modwerk_diag_read(uint8_t *out, unsigned page)
                : at < DIAG_IMAGE_BYTES ? stall[at - sizeof(struct diag_log) - DIAG_CRASH_BYTES] : 0;
     return DIAG_PAGE;
 }
+
+int modwerk_diag_boot_token(uint32_t *nonce,uint32_t *boot)
+{
+    if(!nonce || !boot || !started || LOG->magic!=DIAG_MAGIC || LOG->version!=DIAG_VERSION || !LOG->boot)return 0;
+    *nonce=LOG->nonce;*boot=LOG->boot;return 1;
+}

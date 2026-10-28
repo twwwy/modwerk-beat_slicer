@@ -73,6 +73,11 @@ __attribute__((weak)) int modwerk_machine_journal_trial(int running) { (void)run
 #endif
 __attribute__((weak)) void modwerk_machine_site_restored(uint32_t a, uint32_t n, const uint8_t *patched, const uint8_t *stock)
 { (void)a; (void)n; (void)patched; (void)stock; }
+#ifndef MODWERK_RUNTIME_LIFECYCLE_EXTERNAL
+__attribute__((weak)) int modwerk_machine_module_admit(const struct runtime_module *m) { (void)m;return 1; }
+__attribute__((weak)) void modwerk_machine_module_switched(const struct runtime_module *from,const struct runtime_module *to)
+{ (void)from;(void)to; }
+#endif
 int modwerk_runtime_volatile_busy(void) { return journal.progress.phase != RJ_IDLE; }
 
 
@@ -601,6 +606,7 @@ static int switch_locked(unsigned position, struct runtime_module *to, const str
     if (!modwerk_machine_stopped()) return 0;
     const struct runtime_module *from = live[position];
     struct runtime_dsp want = *dsp_of(to); /* the machine keeps the effect id it gave at admission */
+    if(!modwerk_machine_module_admit(from) || !modwerk_machine_module_admit(to))return refuse(RUNTIME_MALFORMED);
     int ok = !in_flight(from, to, context) && !modwerk_machine_metadata_admit(dsp_of(from), &want, context, RUNTIME_METADATA_SWITCH) &&
         want.foreign_roots == dsp_of(to)->foreign_roots &&
         (!legacy_dsp || !modwerk_machine_dsp_admit(dsp_of(from), &want)) && want.id == dsp_of(to)->id;
@@ -630,6 +636,7 @@ static int switch_locked(unsigned position, struct runtime_module *to, const str
             owners_changing();
             live[position] = to;
             owners_changed();
+            if(from!=to)modwerk_machine_module_switched(from,to);
             /* The journal's adapter already owns all DSP jobs and ACKs. Its
              * CF commit observation must not start a second legacy job. */
             if(legacy_dsp) modwerk_machine_dsp_switch(dsp_of(from), dsp_of(to));

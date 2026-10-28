@@ -1761,6 +1761,23 @@
      "what": "actual command-16 display dispatch confirms a possible read-only job; source access stays closed until idle and complete metadata revalidation"
     }
    ]
+  },
+  {
+   "event": "ot_module_lifecycle",
+   "index": 37,
+   "kind": "table",
+   "site": null,
+   "length": 0,
+   "record": 4,
+   "key": null,
+   "room": 128,
+   "declaration": "#include \"modwerk_lifecycle.h\"",
+   "when": "one module enters or leaves the live set; notification belongs only to that exact owner",
+   "context": "engine task under the stable loader lock, interrupts enabled above the task lock; bounded, no firmware calls, blocking, allocation or loader reentry",
+   "contract": "Contribute one four-byte struct modwerk_lifecycle with an entry in this owner's initialized image. The base validates descriptor and entry before a switch. A successful switch notifies the outgoing owner before any task can observe its absence, then the incoming owner. ATTACH and RESTORE mean unobserved history: forget persistent edit ownership. BOOT means the saved set is being restored automatically; it does not prove external firmware history. DETACH never keeps a package pointer after the callback. Failed admissions and no-op switches notify nobody. Older bases refuse the longer hook list.",
+   "order": "One descriptor per owner; no inter-module ordering or dispatch.",
+   "subscribers": [],
+   "orderEvidence": "Private local lifecycle prototype for persistent edit ownership; no published consumer."
   }
  ]
 }

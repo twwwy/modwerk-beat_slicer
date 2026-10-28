@@ -26,10 +26,14 @@ static void tick(void) { modwerk_runtime_ticks = modwerk_runtime_ticks + 1u; mod
 
 int main(void)
 {
+    uint32_t nonce=0x1234u,boot=0x5678u;
+    CHECK(!modwerk_diag_boot_token(&nonce,&boot) && nonce==0x1234u && boot==0x5678u);
     modwerk_test_crash[0] = 0x4d574352u, modwerk_test_crash[1] = 2, modwerk_test_crash[3] = 0x40012345u;
     for (unsigned i = 0; i < sizeof modwerk_test_log; ++i) ((volatile uint8_t *)&modwerk_test_log)[i] = 0xa5;
     restart();
     CHECK(LOG->magic == DIAG_MAGIC && LOG->version == DIAG_VERSION && LOG->boot == 1u);
+    CHECK(modwerk_diag_boot_token(&nonce,&boot) && nonce==LOG->nonce && boot==1u);
+    CHECK(!modwerk_diag_boot_token(0,&boot) && !modwerk_diag_boot_token(&nonce,0));
     CHECK(LOG->incidents == 2u && LOG->incident[0].kind == DIAG_START && LOG->incident[0].seq == 1u && LOG->incident[0].a == 2u << 16); /* old crashes: no CRASH */
     CHECK(last()->kind == DIAG_BASE && last()->a == 0x320fc454u && last()->keys[0] == 0xffu); /* the base, right after each start */
     CHECK(LOG->loads == 0u && LOG->freeze_state == 0u);
@@ -45,6 +49,8 @@ int main(void)
     /* A crash and a stall since the last start. */
     modwerk_test_crash[1] = 3, modwerk_test_stall[0] = 0x4d575354u, modwerk_test_stall[1] = 1, modwerk_test_stall[2] = 2;
     restart();
+    uint32_t previous_nonce=nonce;
+    CHECK(modwerk_diag_boot_token(&nonce,&boot) && nonce==previous_nonce && boot==2u);
     CHECK(LOG->boot == 2u && LOG->incidents == 7u); /* START, BASE, CRASH, STALL after the first boot's three */
     CHECK(LOG->incident[3].kind == DIAG_START && LOG->incident[4].kind == DIAG_BASE && LOG->incident[5].kind == DIAG_CRASH && LOG->incident[5].a == 0x40012345u);
     CHECK(LOG->incident[6].kind == DIAG_STALL && LOG->incident[6].a == 2u && LOG->incident[6].fx[0] == 0 && LOG->incident[6].keys[0] == 0xffu);

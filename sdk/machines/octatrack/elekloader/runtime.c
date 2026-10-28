@@ -306,3 +306,37 @@ int modwerk_runtime_enc(int encoder, int delta)
     }
     return 0;
 }
+
+#if defined(MODWERK_RUNTIME_EVENTS) && !defined(MODWERK_HOST)
+#include "modwerk_events.h"
+/* No package pointer escapes this call. Normalizing aliases is only for
+ * bounds checks; invocation uses the relocated code address supplied. */
+static int lifecycle_entry(const struct runtime_module *m,uintptr_t *entry)
+{
+    *entry=0;
+    if(!m || !m->hook[MODWERK_OT_MODULE_LIFECYCLE])return 1;
+    struct runtime_owner owner;
+    if(!modwerk_runtime_owner_snapshot(m->dsp.image,&owner))return 0;
+    uint32_t image=modwerk_machine_reference((uint32_t)(uintptr_t)m->dsp.image);
+    uint32_t at=modwerk_machine_reference((uint32_t)m->hook[MODWERK_OT_MODULE_LIFECYCLE]);
+    if((at&3u) || at<image || owner.image_bytes<4u || at-image>owner.image_bytes-4u)return 0;
+    uintptr_t code=*(const uint32_t *)m->hook[MODWERK_OT_MODULE_LIFECYCLE];
+    uint32_t normalized=modwerk_machine_reference((uint32_t)code);
+    if((normalized&1u) || normalized<image || owner.image_bytes<2u || normalized-image>owner.image_bytes-2u)return 0;
+    *entry=code;return 1;
+}
+int modwerk_machine_module_admit(const struct runtime_module *m)
+{ uintptr_t entry;return lifecycle_entry(m,&entry); }
+__attribute__((weak)) unsigned modwerk_modset_boot_restoring;
+void modwerk_machine_module_switched(const struct runtime_module *from,const struct runtime_module *to)
+{
+    uintptr_t before=0,after=0;
+    struct modwerk_lifecycle_context context={MODWERK_LIFECYCLE_DETACH,0,0};
+    int modwerk_diag_boot_token(uint32_t *,uint32_t *);
+    (void)modwerk_diag_boot_token(&context.boot_nonce,&context.boot);
+    if(lifecycle_entry(from,&before) && before)((void (*)(const struct modwerk_lifecycle_context *))before)(&context);
+    context.reason=modwerk_runtime_restoring()?MODWERK_LIFECYCLE_RESTORE:
+        modwerk_modset_boot_restoring?MODWERK_LIFECYCLE_BOOT:MODWERK_LIFECYCLE_ATTACH;
+    if(lifecycle_entry(to,&after) && after)((void (*)(const struct modwerk_lifecycle_context *))after)(&context);
+}
+#endif

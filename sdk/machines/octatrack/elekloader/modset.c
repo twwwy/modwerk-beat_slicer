@@ -262,6 +262,7 @@ static int whole(int n)
     return 1;
 }
 /* After a boot: the newest whole set, each package installed as a USB install would be. */
+unsigned modwerk_modset_boot_restoring; /* lifecycle: only the automatic boot restore loop */
 static void restore(void)
 {
     restored = 1;
@@ -291,6 +292,7 @@ static void restore(void)
      * (modwerk_modset_check_set refused every one after a partial restore, beta finding 69). The card keeps its
      * copy until the next change, so the next boot tries the refused ones again. */
     if (!b6->enter(b6->user)) { seal(0, HEADER); modwerk_modset_result = REFUSED; return; }
+    modwerk_modset_boot_restoring=1;
     for (uint32_t at = HEADER; at < n; ++count) {
         uint32_t length = be32(set + at + 4), step = 8u + ((length + 3u) & ~3u);
         if (b6->prepare(b6->user, set + at + 8, length) && b6->publish(b6->user) == MU_APPLIED && b6->retire(b6->user)) {
@@ -303,6 +305,7 @@ static void restore(void)
         }
         at += step;
     }
+    modwerk_modset_boot_restoring=0;
     if (refused) modwerk_diag_refused(refused, refusal);
     (void)b6->leave(b6->user);
     if (installed != count) seal(installed, end);

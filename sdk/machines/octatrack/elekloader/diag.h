@@ -60,6 +60,7 @@ void modwerk_diag_tick(void);                          /* ev_tick */
 int modwerk_diag_key(int code, int pressed);           /* ev_key: remembers presses, takes none */
 void modwerk_diag_frame(void);                         /* dl_frame, in the frame interrupt */
 unsigned modwerk_diag_read(uint8_t *out, unsigned page); /* ep0.c LOG: DIAG_PAGE bytes of the log, then the records */
+int modwerk_diag_boot_token(uint32_t *nonce,uint32_t *boot); /* current initialized boot witness; no diagnostics contents */
 void modwerk_diag_set(void);                           /* modset.c: the installed set changed (restore, Keep) */
 void modwerk_diag_refused(uint32_t module, uint32_t refusal); /* modset.c, before a restore's set record: its first refused
                                                        * package's module and the loader's refusal (screen, tempo24) */

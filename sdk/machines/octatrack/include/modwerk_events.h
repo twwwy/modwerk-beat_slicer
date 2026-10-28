@@ -171,4 +171,8 @@ typedef unsigned modwerk_ev_trig_muted(void);
 #define MODWERK_OT_SAMPLE_EDITOR_ACTIONS 36
 #include "modwerk_sample_editor.h"
 
+/* ot_module_lifecycle (table, contribute {"to": "ot_module_lifecycle", "order", "data"}): one module enters or leaves the live set; notification belongs only to that exact owner. Engine task under the stable loader lock, interrupts enabled above the task lock; bounded, no firmware calls, blocking, allocation or loader reentry. Contribute one four-byte struct modwerk_lifecycle with an entry in this owner's initialized image. The base validates descriptor and entry before a switch. A successful switch notifies the outgoing owner before any task can observe its absence, then the incoming owner. ATTACH and RESTORE mean unobserved history: forget persistent edit ownership. BOOT means the saved set is being restored automatically; it does not prove external firmware history. DETACH never keeps a package pointer after the callback. Failed admissions and no-op switches notify nobody. Older bases refuse the longer hook list. */
+#define MODWERK_OT_MODULE_LIFECYCLE 37
+#include "modwerk_lifecycle.h"
+
 #endif

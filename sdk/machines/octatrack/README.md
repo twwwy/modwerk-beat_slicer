@@ -21,3 +21,12 @@ Recovery: hold FUNC while powering on, choose MIDI UPGRADE and send the stock .s
 The beta base carries the [sample-editor service](SAMPLE_EDITOR.md) for the AED
 SLICE menu (`ot_sample_editor_actions`, index 36). Beat Slicer is its first
 contributor.
+
+## Local lifecycle prototype
+
+The separate local base prototype adds `ot_module_lifecycle` (index 37),
+documented in [HOOKS.md](HOOKS.md) and [modwerk_lifecycle.h](include/modwerk_lifecycle.h).
+It notifies only the changing owner while its image is still allocated, with
+an initialized diagnostic boot witness. Modules must distrust USB attachment,
+Undo restoration and missed boot history. This is not a published capability
+or proof about edits made under external firmware.

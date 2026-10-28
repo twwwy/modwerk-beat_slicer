@@ -5,6 +5,7 @@
 #define MODWERK_RUNTIME_REFERENCE_EXTERNAL
 #define MODWERK_RUNTIME_METADATA_EXTERNAL
 #define MODWERK_RUNTIME_JOURNAL_EXTERNAL
+#define MODWERK_RUNTIME_LIFECYCLE_EXTERNAL
 #define MODWERK_RUNTIME_FEATURES_EXTERNAL
 #include "../loader.c"
 #include "../../upload/sha256.c"
@@ -16,6 +17,15 @@ static unsigned failures;
 #define CHECK(x) do { if (!(x)) { failures++; fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #x); } } while (0)
 static uint8_t stock[256], original[256], paused[64], saved_registers[64];
 static int stopped = 1, masked, locked, flushed, unknown;
+static unsigned lifecycle_calls,lifecycle_refused;
+int modwerk_machine_module_admit(const struct runtime_module *m){(void)m;return !lifecycle_refused;}
+void modwerk_machine_module_switched(const struct runtime_module *from,const struct runtime_module *to)
+{
+    CHECK(locked && !masked && from!=to);
+    if(from) {struct runtime_owner o;CHECK(modwerk_runtime_owner_snapshot(from->dsp.image,&o));}
+    if(to) {struct runtime_owner o;CHECK(modwerk_runtime_owner_snapshot(to->dsp.image,&o));}
+    ++lifecycle_calls;
+}
 int modwerk_machine_stopped(void) { return stopped; }
 /* Pool pushes (MODWERK_CACHED_MODULES): how many, the last range, and how many an instruction-cache invalidation
  * followed before the next one. Host addresses are truncated to 32 bits, as the loader passes them. */
@@ -312,7 +322,13 @@ int main(void)
 
     /* A: hooks, a relocated word, bss and one site, published while nothing is in flight. */
     begin(8, 4, 2, &four, 1, 1, 0xa1); site(STOCK + 32, 6);
-    CHECK(b->prepare(0, p, n) && b->publish(0) == MU_APPLIED);
+    CHECK(b->prepare(0, p, n));
+    unsigned lifecycle_before=lifecycle_calls;
+    lifecycle_refused=1;
+    CHECK(b->publish(0)!=MU_APPLIED && lifecycle_calls==lifecycle_before);
+    CHECK(!modwerk_runtime_module(0) && memcmp(stock,original,sizeof stock)==0);
+    lifecycle_refused=0;
+    CHECK(b->publish(0)==MU_APPLIED && lifecycle_calls==lifecycle_before+1u);
     const struct runtime_module *a = modwerk_runtime_module(0);
     uint8_t *code = (uint8_t *)(uintptr_t)(a->hook[RUNTIME_TICK] - 2);
     CHECK(a && a->sites == 1 && code[0] == 0xa1 && be32(code + 4) == (uint32_t)(uintptr_t)code + 6 && be32(code + 8) == 0);
@@ -326,6 +342,8 @@ int main(void)
     CHECK(pool_flushes == 1 && pushed(a));
 #endif
     CHECK(b->retire(0));
+    lifecycle_before=lifecycle_calls;
+    CHECK(switch_to(0,(struct runtime_module *)a,0) && lifecycle_calls==lifecycle_before);
 
     /* B patches the same place: A's bytes go back first. A paused task inside
      * a site, or unknown task state, refuses and changes nothing. */
@@ -1015,6 +1033,7 @@ int main(void)
 #else
     CHECK(!pool_flushes);
 #endif
+    CHECK(lifecycle_calls>0);
     if (failures) { fprintf(stderr, "%u loader checks failed\n", failures); return 1; }
     puts("Loader: refusals, relocation, bss, hooks, stock-code sites (in-flight, stock and changed-code refusals, "
          "replace, rollback, removal), reclamation, several modules (conflicts, positions), exhaustion, DSP sections, ABI 7's "

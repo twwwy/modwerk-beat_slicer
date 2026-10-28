@@ -196,6 +196,13 @@
    "kind": "table",
    "room": 4,
    "record": 64
+  },
+  {
+   "index": 37,
+   "event": "ot_module_lifecycle",
+   "kind": "table",
+   "room": 128,
+   "record": 4
   }
  ]
 }

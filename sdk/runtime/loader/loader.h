@@ -180,6 +180,11 @@ unsigned modwerk_runtime_refused_event(void);         /* after RUNTIME_EVENT: th
 extern uintptr_t volatile *const modwerk_runtime_event_row[RUNTIME_SITE_EVENTS];
 extern const uint8_t modwerk_events_code[], modwerk_events_code_end[];
 #endif
+/* Stable lock held; admission is read-only. Notifications run only after a
+ * successful CF switch, with both owners still allocated. They may not block
+ * or reenter the loader. Default no-ops on machines without this service. */
+int modwerk_machine_module_admit(const struct runtime_module *);
+void modwerk_machine_module_switched(const struct runtime_module *from,const struct runtime_module *to);
 void modwerk_machine_tables_changed(void);          /* masked, after rows changed; weak no-op by default */
 /* Masked: a site's bytes went back to stock (`patched` were its module's), so stock data that copied them can follow;
  * weak no-op by default. */
