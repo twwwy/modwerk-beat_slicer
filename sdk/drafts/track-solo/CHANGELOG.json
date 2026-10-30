@@ -1,0 +1,11 @@
+[
+  {
+    "version": "0.1.0-experimental",
+    "date": "2026-10-30",
+    "changes": [
+      "Prototype momentary track solo with a two-second hold and press-to-toggle group selection.",
+      "Releasing the original track returns to the existing mute and solo state.",
+      "Hardware, companion behavior, performance and broader save/load qualification remain pending."
+    ]
+  }
+]
