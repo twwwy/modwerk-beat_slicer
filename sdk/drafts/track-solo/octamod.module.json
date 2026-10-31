@@ -3,7 +3,7 @@
   "id": "track-solo",
   "key": "TRACK SOLO",
   "name": "Track Solo",
-  "version": "0.1.0-experimental",
+  "version": "0.2.0-experimental",
   "category": "system",
   "author": {
     "github": "twwwy",
@@ -14,9 +14,9 @@
   "nativeManifest": "manifest.py",
   "presentation": {
     "label": "TRACK SOLO",
-    "family": "Track performance",
+    "family": "Track audition",
     "summary": "Momentary solo: hold a track for two seconds, tap others to join, then release to restore.",
-    "overview": "A session-only audio-track solo gesture. The original mute and solo state remains untouched.",
+    "overview": "A session-only audition while editing. The held anchor is hidden from stock shortcuts; underlying mute and solo changes apply when the audition ends.",
     "highlights": [
       "Two-second hold with one anchor track.",
       "Toggle other audio tracks into the group with one press.",
@@ -38,23 +38,23 @@
       "key:TRACK+TRACK"
     ],
     "limitations": [
-      "Prototype only. MKII emulator DSP audio passes; hardware and broader qualification remain pending.",
+      "Private emulator prototype; physical MKII/MKI, CPU timing and USB lifecycle qualification remain pending. See TESTING.md for exact-build evidence.",
       "TRACK SOLO is OFF on startup and after package replacement; its enable setting and solo groups are not saved.",
-      "MIDI mode is excluded. Master-track and Neighbor-chain behavior is not qualified.",
-      "Compatibility with non-stock Mute Modes and the proposed Track Mutes module is not qualified.",
+      "MIDI mode is excluded. When T8 is master, include it with the source tracks in the temporary group; T8 alone has no source audio.",
+      "Mute Modes is optional. Its policy governs tails and trig suppression. Focused emulator tests cover four policies on the corrected private base; hardware remains untested.",
       "USB settings use the existing shared row table; native card settings integration is pending."
     ],
     "effectId": null
   },
   "resources": {
-    "recorded": "2026-10-30",
+    "recorded": "2026-11-01",
     "storage": {
       "label": "Storage",
-      "display": "980 bytes linked code/data; zero BSS",
-      "value": 980,
+      "display": "1500 bytes linked code/data; zero BSS",
+      "value": 1500,
       "unit": "bytes",
       "method": "static",
-      "conditions": "Exact private runtime candidate: 980-byte initialized image, zero BSS, 16 relocations; 1288-byte encoded package. Excludes base/loader bookkeeping and stock memory.",
+      "conditions": "Revised UX private build 11: 1500-byte initialized image, zero BSS, 24 relocations, seven guarded sites and 2128-byte package. No DSP allocation. Excludes base bookkeeping and unmeasured native stack.",
       "source": "TESTING.md"
     },
     "processing": {
@@ -69,7 +69,7 @@
   },
   "tests": {
     "report": "TESTING.md",
-    "summary": "Host gesture regressions, 531 compiled ColdFire/stock-routine checks, MKII UART menu/backend tests, both-core DSP stem captures and unchanged saved-project reload on original stock pass in the emulator. Hardware, performance and broader qualification remain pending.",
+    "summary": "Focused host, native routine, UART controls, standalone and four-policy paired DSP, and standalone plus paired no-edit save/project reload all pass on the named private build and corrected private base. Hardware remains untested. See TESTING.md.",
     "hardwareStatus": "untested",
     "gates": [
       "python3 -B verify.py",

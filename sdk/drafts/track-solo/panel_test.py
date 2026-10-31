@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Emulator-only package install, real UART panel events, UI ticks and removal.
+"""Historical 0.1.x scenario; use ux_test.py for revised 0.2.0 UX.
+
+Emulator-only package install, real UART panel events, UI ticks and removal.
 
 Uses the real runtime backend, directly invoked as an emulator fixture. This
 does not claim USB transport, review/trial/Keep/Undo or physical unit evidence.
@@ -13,7 +15,8 @@ from pathlib import Path
 import struct
 import math
 import shutil
-from emulator_test import Emulator
+import re
+from emulator_test import Emulator, assert_frame_progress
 
 def check_scratch_fat16(image):
     """Catch dangling allocation links hidden by file-size-limited extraction."""
@@ -27,6 +30,15 @@ def check_scratch_fat16(image):
     for cluster,link in enumerate(fat[2:],2):
         if link and link<0xfff8:
             assert 2<=link<len(fat) and fat[link]!=0, ('dangling FAT chain',cluster,link)
+
+def check_bank_checksums(files):
+    """Check the stock bank checksum independently of baseline byte equality."""
+    for name,data in files.items():
+        if not re.search(r'/bank\d{2}\.(work|strd)$',name,re.I):continue
+        assert len(data)>=18, ('truncated bank file',name)
+        expected=int.from_bytes(data[-2:],'big')
+        actual=sum(data[0x10:-2])&0xffff
+        assert actual==expected, ('invalid bank checksum',name,actual,expected)
 
 def reload_project(args, card_path, out):
     """Boot the named module-free firmware, never silently substitute a build."""
@@ -87,6 +99,19 @@ def run(args):
             if args.audio: emu.command('frame on');advance(10)
     def call(name,*v): return invoke(symbols[name],*v)
     def read32(at): return int.from_bytes(emu.read(at,4),'big')
+    def task_window():
+        # Debugger commands can stop inside an ISR, unlike a real UI/MIDI
+        # task. Sample/edit only outside the stock frame-busy guard. Keep
+        # the DSP/frame clock running while waiting for that task window.
+        if args.audio:
+            for _ in range(2000):
+                if read32(0x46104d4e)==0:break
+                advance(0.01)
+            else:raise AssertionError('no task window outside the audio frame')
+    def canonical_word(value=None):
+        task_window()
+        if value is not None:emu.u32(0x80000008,value)
+        return emu.read(0x80000008,4)
     packet=0x47010000
     def install(content):
         for at in range(0,len(content),4096): emu.write(packet+at,content[at:at+4096])
@@ -113,8 +138,10 @@ def run(args):
         emu.command('card flush')
         image=card_path.read_bytes();check_scratch_fat16(image)
         files=card.extract_image(image)
-        return {name:content for name,content in files.items()
-                if name.upper().startswith('SOLO/TEST/') and name.endswith(('.work','.strd'))}
+        selected={name:content for name,content in files.items()
+                  if name.upper().startswith('SOLO/TEST/') and name.endswith(('.work','.strd'))}
+        check_bank_checksums(selected)
+        return selected
     def save_project():
         # Documented stock MKII SAVE PROJECT path. Reset the right-pane
         # cursor so the second save does not inherit the first save's row.
@@ -123,10 +150,28 @@ def run(args):
         # SAVE PROJECT is asynchronous. A zero popup while its progress bar
         # is running is not completion. Wait for the engine queue's blocked
         # receiver and no pending messages, then let its DONE toast expire.
-        for _ in range(300):
+        # With both DSP cores/frame emulation enabled, the 20 MB fixture can
+        # still be writing its last bank at the old 30 s test deadline. Allow
+        # bounded completion while requiring continued sector-write progress;
+        # a stalled job still fails, and FAT/content checks remain mandatory.
+        def written_sectors():
+            status=emu.command('card status')
+            return int(re.search(r'written=(\d+)',status)[1])
+        previous=written_sectors();stalled_ms=0;progress=[]
+        for poll in range(900 if args.audio else 300):
             advance(100)
             if read32(0x460d17d2)==0 and read32(0x460d17da)!=0: break
+            if poll%10==9:
+                written=written_sectors();progress.append({'ms':(poll+1)*100,'writtenSectors':written})
+                stalled_ms=0 if written>previous else stalled_ms+1000
+                previous=written
+                (out/'last-save-progress.json').write_text(json.dumps(progress,indent=2)+'\n')
+                assert stalled_ms<10000, 'SAVE PROJECT made no sector-write progress for 10 simulated seconds'
         else: raise AssertionError('SAVE PROJECT engine did not return idle')
+        progress.append({'ms':(poll+1)*100,'writtenSectors':written_sectors(),'engineIdle':True})
+        log=out/'completed-saves.json'
+        saves=json.loads(log.read_text()) if log.exists() else []
+        saves.append(progress);log.write_text(json.dumps(saves,indent=2)+'\n')
         advance(3000)
         for _ in range(2): tap(0x32)
         wait_clear_screen()
@@ -152,8 +197,11 @@ def run(args):
         panel.feed(bytes.fromhex(emu.command('tx').split()[1]))
         (out/(name+'.png')).write_bytes(panel.render_png(scale=4,dark=24,light=240))
     try:
-        before=emu.read(0x40004dcc,6)
+        before={at:emu.read(at,6) for at in (0x4000aee0,0x4000d99a)}
         install(data);installed=True
+        if args.companion_package:
+            install(args.companion_package.read_bytes())
+            checks.append('unchanged companion installed beside Track Solo through the real backend')
         for _ in range(3): key(0x32);key(0x32,False)
         # The live module record's first hook is ts_tick. Derive its actual
         # installed address instead of assuming an arena placement.
@@ -197,7 +245,7 @@ def run(args):
             assert all(v>10 for v in baseline_audio),baseline_audio
             print('DSP audio baseline: all eight generated tones present',flush=True)
             checks.append('eight generated tones play through both DSP cores before solo')
-        baseline=emu.read(0x80000008,4)
+        baseline=canonical_word()
         screenshot('before-arming')
         emu.command(f"watchmem {base+own['ts']+21:#x} 2")
         arming_trace=[gesture_state()]
@@ -213,7 +261,7 @@ def run(args):
         if overlay()!=2:
             raise AssertionError(('no solo after hold',arming_trace,gesture_state(),emu.command('writes')))
         selected=emu.read(0x80000000,1)
-        assert emu.read(0x80000008,4)==baseline
+        assert canonical_word()==baseline
         if args.audio:
             solo_audio=audio_levels()
             assert solo_audio[1]>10 and all(v<1 for t,v in enumerate(solo_audio) if t!=1),solo_audio
@@ -234,7 +282,7 @@ def run(args):
         for t in (0,2,3,4,5,6,7): key(0x10+t);key(0x10+t,False)
         assert overlay()==255
         key(0x11,False);assert overlay()==0
-        assert emu.read(0x80000008,4)==baseline
+        assert canonical_word()==baseline
         if args.audio:
             restored_audio=audio_levels()
             assert all(v>10 for v in restored_audio),restored_audio
@@ -243,29 +291,29 @@ def run(args):
         checks.append('all eight audio tracks join; anchor release restores underlying state')
         if args.audio:
             # Test-only synthetic underlying masks, observed through real DSP
-            # stems. Production never writes this canonical word.
+            # stems. Production restores this word at every frame exit.
             original=int.from_bytes(baseline,'big')
             masked=(original&0xffff0000)|0x0201  # T1 solo; T2 muted
-            emu.u32(0x80000008,masked);advance(100)
+            canonical_word(masked);advance(100)
             levels=audio_levels()
             assert levels[0]>10 and all(v<1 for t,v in enumerate(levels) if t!=0),levels
             key(0x11);advance(2100);assert overlay()==2
             levels=audio_levels()
             assert levels[1]>10 and all(v<1 for t,v in enumerate(levels) if t!=1),levels
-            assert read32(0x80000008)==masked
+            assert int.from_bytes(canonical_word(),'big')==masked
             key(0x11,False)
             levels=audio_levels()
             assert levels[0]>10 and all(v<1 for t,v in enumerate(levels) if t!=0),levels
             key(0x11);advance(2100);assert overlay()==2
             changed=(original&0xffff0000)|0x0104  # T3 solo; T1 muted
-            emu.u32(0x80000008,changed);advance(100)
+            canonical_word(changed);advance(100)
             levels=audio_levels()
             assert levels[1]>10 and all(v<1 for t,v in enumerate(levels) if t!=1),levels
             key(0x11,False)
             levels=audio_levels()
             assert levels[2]>10 and all(v<1 for t,v in enumerate(levels) if t!=2),levels
-            assert read32(0x80000008)==changed
-            emu.u32(0x80000008,original);advance(100)
+            assert int.from_bytes(canonical_word(),'big')==changed
+            canonical_word(original);advance(100)
             checks.append('DSP stems with synthetic underlying masks: muted anchor can solo; previous solo returns; changes made during hold survive release')
             print('DSP underlying-state cases: muted anchor, existing solo and mid-hold changes pass',flush=True)
         advance(50);key(0x11);advance(2100);assert overlay()==2
@@ -280,6 +328,11 @@ def run(args):
             assert call('modwerk_machine_stopped')==1
             checks.append('base requires idle tracks for package changes; two STOP presses satisfy that existing guard')
         if args.persistence:
+            if args.companion_package:
+                # Test input only. Mute Modes starts in OT for the stock-mode
+                # audio assertions above; the final held-save case uses the
+                # requested mode. Its persisted personal setting is not edited.
+                task_window();emu.u32(0x800000dc,args.save_mute_mode);advance(100)
             advance(50);key(0x11);advance(2100);assert overlay()==2
             save_project()  # original TRACK stays physically held throughout
             assert overlay()==0, 'opening PROJECT must cancel the performance overlay'
@@ -287,6 +340,8 @@ def run(args):
             saved_after=project_files()
             different=[n for n in saved_baseline if saved_baseline[n]!=saved_after.get(n)]
             assert not different, ('saved project changed',different)
+            if args.companion_package:
+                assert read32(0x800000dc)==args.save_mute_mode, 'Track Solo changed the companion mode'
             checks.append('SAVE PROJECT while anchor held leaves every work/stored project file byte-identical to baseline')
         advance(50);key(0x11);advance(2100);assert overlay()==2
         key(0x12);assert overlay()==6  # remove with a swallowed join also held
@@ -295,10 +350,18 @@ def run(args):
         ident=struct.unpack_from('>I',data,28)[0]
         remove=struct.pack('>4sHH6I',b'MWRM',4,0,0,0,0,0,0,ident)
         install(remove);installed=False
-        assert emu.read(0x40004dcc,6)==before
-        assert emu.read(0x80000008,4)==baseline
+        assert all(emu.read(at,6)==saved for at,saved in before.items())
+        assert canonical_word()==baseline
         key(0x12,False);key(0x11,False)
         checks.append('actual runtime removal while held restores the site and leaves mute/solo untouched')
+    except Exception as error:
+        failure={'result':'failed','error':repr(error),'checksCompleted':checks,
+                 'model':'MKII emulator','hardwareTested':False,
+                 'packageSha256':hashlib.sha256(data).hexdigest(),
+                 'baseMainSha256':hashlib.sha256(args.base_main.read_bytes()).hexdigest(),
+                 'companionPackageSha256':hashlib.sha256(args.companion_package.read_bytes()).hexdigest() if args.companion_package else None}
+        (out/'report.json').write_text(json.dumps(failure,indent=2)+'\n')
+        raise
     finally:
         # The whole emulator is disposable. No physical device is accessed.
         emu.close()
@@ -306,10 +369,15 @@ def run(args):
     if args.persistence:
         reload=reload_project(args,card_path,out)
         checks.extend(reload['checks'])
+    if args.audio:
+        assert_frame_progress(out/'emulator.private.log')
+        checks.append('DSP frame counter keeps advancing throughout the full workflow')
     result={'result':'passed','checks':checks,'model':'MKII emulator',
         'packageSha256':hashlib.sha256(data).hexdigest(),
         'baseMainSha256':hashlib.sha256(args.base_main.read_bytes()).hexdigest(),
         'reloadMainSha256':reload['mainSha256'] if args.persistence else None,
+        'companionPackageSha256':hashlib.sha256(args.companion_package.read_bytes()).hexdigest() if args.companion_package else None,
+        'finalSaveMuteMode':args.save_mute_mode if args.companion_package else None,
         'limits':['direct backend calls, not USB transport or review/trial/Keep/Undo',
                   'no physical reboot qualification'] + ([] if args.persistence else ['no saved-project qualification']) + ([] if args.audio else ['no DSP audio qualification'])}
     (out/'report.json').write_text(json.dumps(result,indent=2)+'\n')
@@ -326,7 +394,9 @@ if __name__=='__main__':
     p.add_argument('--reload-dsp',action='store_true',help='Enable DSP emulation during the separate reload')
     p.add_argument('--menu',action='store_true')
     p.add_argument('--panel-decoder',type=Path)
+    p.add_argument('--companion-package',type=Path,help='Unchanged Mute Modes package; real backend installation')
+    p.add_argument('--save-mute-mode',type=int,choices=(0,1,2,3),default=0,help='Synthetic Mute Modes input for the final held-save case')
     args=p.parse_args()
-    if args.persistence and (not args.fixture or not args.reload_main or args.audio):
-        p.error('--persistence needs --fixture and --reload-main and is separate from --audio')
+    if args.persistence and (not args.fixture or not args.reload_main):
+        p.error('--persistence needs --fixture and --reload-main')
     run(args)

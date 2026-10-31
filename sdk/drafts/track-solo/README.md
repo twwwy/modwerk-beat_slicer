@@ -1,6 +1,11 @@
 # Track Solo
 
-Version `0.1.0-experimental` · author `twwwy` · **local prototype, not released**.
+Version `0.2.0-experimental` · author `twwwy` · **local prototype, not released**.
+
+**Private emulator prototype:** use only the exact candidate and corrected base
+named in TESTING.md. The original base corrupts a saved bank file and remains
+withdrawn. Earlier storage results do not automatically qualify this revised
+input/LED implementation. Physical-unit and release qualification remain pending.
 
 ## Overview
 
@@ -8,7 +13,7 @@ Hold an audio TRACK button alone for two seconds to solo it temporarily. Keep
 that original button held and tap other TRACK buttons to add or remove them.
 Release the original button to end the entire operation.
 
-Category: **system**. This is a performance control for audio tracks, with no FX
+Category: **system**. This is a compositional audition control for audio tracks, with no FX
 slot, DSP engine, MIDI generator, parameter lock or scene parameter of its own.
 
 ## Controls
@@ -18,7 +23,12 @@ slot, DSP engine, MIDI generator, parameter lock or scene parameter of its own.
 | PROJECT > CONTROL > SEQUENCER > TRACK SOLO | OFF / HOLD; OFF by default. This setting is session-only. |
 | A TRACK button held alone | The original press passes to stock; temporary solo after 120 instrument UI ticks, approximately two seconds. |
 | Another TRACK button pressed during solo | Toggle that track once. Its release does not toggle it. |
-| Original TRACK button released | End solo, including every joined track. |
+| Original TRACK button released | End solo, including every joined track; reveal the latest underlying mute/solo state. |
+| Pages, SETUP, parameter encoders and MIXER navigation | Continue auditioning; keep actual parameter edits. |
+| Mixer/quick mute, stock solo, MIDI and arranger mute/solo changes | Update underlying state without changing or canceling the temporary group. |
+| TRACK lamp brightness | Normal in the temporary group; dim but visible outside it. MIXER indicators show underlying state. |
+| PLAY, STOP and stock shortcuts | Use normal actions with the held anchor hidden from combinations. |
+| PROJECT/save workflow, project load, MIDI editing mode | Cancel the audition; require release and a fresh hold before reactivation. |
 
 The original track stays in the group. Further tracks can be released after
 joining. They do not become new anchors. A repeat of a held key never toggles
@@ -45,28 +55,53 @@ The proposed shared PERSONALIZE table is not a dependency.
   have not been performed. MIDI mode is excluded.
 - OFF is the initial state on boot, installation and package replacement. The
   enable setting and temporary group are never saved in a Part or project.
-- The module changes only the level builder's working register. It never
-  writes the canonical mute/solo word, cue routing, stored Parts or patterns.
-  A muted track can be auditioned in the temporary group; its mute is retained.
-  Existing solos are temporarily replaced, then resume on release. Stock or
-  MIDI edits to the underlying state are retained rather than overwritten by
-  a stale snapshot.
-- Ordinary short presses remain stock. Any other key or encoder turn cancels
-  arming or active solo and passes to stock, including FUNC/CUE combinations,
-  recording, sample nudging, transport and menu access. Open stock popups and
-  MIDI mode prevent arming. The physical key matrix is checked every UI tick
-  so a release consumed by an earlier handler also cancels solo.
-- Other tracks pressed during active solo do not change the selected track.
-  Their matching releases are consumed even if the anchor ends first.
-- No new LED or on-screen solo-group indicator is implemented yet. Stock mute
-  indicators continue to show the underlying state.
-- Master-track, Neighbor-chain, Pickup, cue-routing and automatic Part/pattern
-  transitions need explicit qualification. There is no custom chain or master
-  processing; the stock level builder still runs.
-- Non-stock Mute Modes behavior is not qualified: it evaluates the canonical
-  state before this overlay. Do not advertise that combination as supported.
-  The open Track Mutes proposal also needs a deliberate gesture-compatibility
-  decision before the two are offered together.
+- During each normal audio-frame interrupt, the live mute/solo word shows
+  the temporary group. It is restored before the interrupt returns to tasks.
+  The temporary word preserves cue bits; this code does not edit Part, pattern
+  or battery-backed fields. Saved-file integrity passes the named corrected-base emulator workflows;
+  the original base remains withdrawn.
+  A muted track can be auditioned; previous mutes and solos apply again on
+  release. Each frame takes a fresh snapshot, so it does not restore a stale
+  snapshot from the start of the hold. Emulator checks cover specific MIDI
+  mute/solo/cue edits and an external chromatic-note case in all four Mute Modes;
+  those older external-note results belong to the earlier packages listed in
+  TESTING.md. Complete external-MIDI and hardware qualification remain pending.
+- Short presses remain stock. Initial arming requires a lone TRACK hold. Once
+  active, pages, knobs, ordinary editing popups, transport, scenes and same-project
+  pattern/Part/bank navigation continue without canceling the audition.
+- The anchor's stock shortcut layer is retired when solo activates. Held-key and
+  held-row readers hide it while the physical matrix remains intact for release
+  recovery. The later physical release is consumed, avoiding duplicate stock edges.
+- Unmodified non-anchor TRACK presses toggle membership. Deliberate native
+  modified TRACK operations pass through, including quick mute and cue. Joining
+  does not select an editing track: release the anchor to select another track.
+- TRACK LEDs use native levels 15 (members) and 3 (excluded tracks), preserving
+  native color channels where present. Otherwise dark tracks receive channel A.
+  The transmitted row is filtered without modifying canonical on/blink bitmaps.
+  Visual brightness on physical MKI/MKII hardware remains untested.
+- MIXER continues to show underlying state. Panel, MIDI and arranger mute/solo
+  changes operate underneath the audition; release reveals their latest ordinary
+  result. No state is inherited from the temporary group and no commands replay.
+- Cue routing and recording retain native semantics. Recording MAIN can capture
+  the audition; the temporary nature of solo does not undo recorded audio.
+- PROJECT/save entry, project-load entry and MIDI mode cancel the audition. A
+  canceled held anchor stays hidden until release, without automatic rearming.
+- Earlier-package emulator comparisons passed Neighbor, Pickup recording/playback, Thru,
+  Static, short one-shot/retrigger, recorder-buffer playback, normal/Studio cue
+  routing, automatic Part/pattern/bank transitions and audible master groups.
+  With T8 configured as master, include it with the source tracks in the group;
+  T8 alone has no source audio. This follows native solo routing. There is no
+  custom chain or master processing; the stock level builder still runs. These
+  broader comparisons require repetition before qualifying the revised package.
+- Track Solo does not select or replace a Mute Mode. With unchanged Mute Modes,
+  OT should cut excluded tracks, OTFX/OTFX-T should retain FX tails, and DT-T
+  should let already sounding voices finish while suppressing new trigs. A
+  looping voice can therefore keep sounding in DT-T. In either -T mode, a
+  stopped voice added to the group resumes at its next programmed trig; Track
+  Solo does not create a new trig. All four modes pass the tested playback
+  cases on the earlier corrected-base prototype. Revised-package results and
+  save/reload checks are listed separately in TESTING.md. The open Track Mutes
+  proposal still needs a deliberate gesture-compatibility decision.
 - Native card settings, public browser packaging, common-companion qualification
   and the complete USB review/trial/self-test/Keep/Undo lifecycle are pending.
   This draft is deliberately absent from the public catalogue.
@@ -100,3 +135,17 @@ Choose HOLD with YES, then close the menu before using the hold gesture.
 ![TRACK SOLO set to HOLD in the stock SEQUENCER menu.](media/track-solo-hold.png)
 
 The thumbnail is a conceptual diagram, not an instrument screenshot or measurement.
+
+## Revised interaction contract
+
+The agreed 64-case design is on the fork's `docs/track-solo-cases` branch in
+`docs/TRACK_SOLO_INTERACTION_SPEC.md`. The new focused fixture is `ux_test.py`:
+real runtime installation, panel UART input, panel LED output, optional DSP and
+Mute Modes, and an isolated no-edit SAVE/stock-reload path on one eight-tone card.
+See TESTING.md for named-build results and coverage limits. Earlier prototype
+results do not qualify the revised input and LED paths.
+
+Mute Modes is optional. Changing its setting through PROJECT naturally cancels
+the audition when PROJECT opens. A live processing-policy change outside that
+workflow is read normally by Mute Modes; Track Solo does not watch its private
+setting or add cross-module coordination.

@@ -17,7 +17,7 @@ def load(name,path):
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     return module
 
-def prepare(source,out):
+def prepare(source,out,t1_delay=False):
     out=out.resolve()
     if out.exists(): raise ValueError('Choose a new output directory')
     if not (source/'project.work').is_file() or not (source/'bank01.work').is_file():
@@ -47,15 +47,23 @@ def prepare(source,out):
     for num in range(1,17):
         tone.otp._bank_write(project,num,lambda data,n=num:tone.mutate_bank(data,n,mods),guard=False)
     tone.otp.write_stored(project);tone.verify(project,mods)
+    if t1_delay:
+        # Authored tail-test settings: TIME, FB, VOL, BASE, WDTH, SEND;
+        # then X, TAPE, DIR, SYNC, LOCK, PASS. All other tracks keep NONE.
+        tone.otp.set_fx(project,'fx2',1,'DELAY',page=[47,96,100,0,127,127],
+                        page2=[0,1,127,1,0,0],guard=False)
+        tone.otp.write_stored(project)
     audio=[]
     for track in range(8):
         path=out/f'T{track+1}.wav';tone.make_sample(path,track)
         audio.append(str(path)+f':AUDIO/USBSIG/T{track+1}.wav')
     image,_=card.stage_project(project,'SOLO','TEST',tree=out/'tree',audio=audio,image_mb=32)
     (out/'card.private.img').write_bytes(image)
-    print('Prepared private stock-only eight-tone fixture; SET SOLO, PROJECT TEST')
+    print('Prepared private eight-tone fixture; SET SOLO, PROJECT TEST; T1 DELAY' if t1_delay else
+          'Prepared private stock-only eight-tone fixture; SET SOLO, PROJECT TEST')
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--source',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
-    a=p.parse_args();prepare(a.source,a.output)
+    p.add_argument('--t1-delay',action='store_true',help='Stock delay on T1 for Mute Modes tail comparisons')
+    a=p.parse_args();prepare(a.source,a.output,a.t1_delay)
