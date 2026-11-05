@@ -125,6 +125,16 @@ revision `e249c55` (10 cores, 58 mods, 69 assets). The original package result
 still binds only to checkout `91d8d493` and base `3ae8c38d`; it is not silently
 rolled forward to `8aa2afa4`.
 
+PR #1232 then advanced `upstream/main` to
+`d5e5f7122ebcd39ebd9ce6d43ce4d9a914d9e924`. This adds an Octatrack emulator
+parent-exit watchdog and refreshes infrastructure/source-build proof records,
+including `standalone-recipes.json` and `module-build.json`. It does not change
+the candidate native source, public package wrapper, host reconstruction
+builder, candidate reconstruction recipe, or pinned Elekloader kit/tool
+source. This is an Octatrack emulator/infrastructure update; the package and
+USB fixture report remains bound to `91d8d493` / `3ae8c38d`, with no rebuild or
+emulator result claimed at `d5e5f712`.
+
 This closes only the production package-path and USB software-integration
 check. It adds no hardware result, simultaneous-companion result, cycle bound,
 complete stack/memory bound, measured CPU budget, or edited-pattern persistence
