@@ -113,6 +113,18 @@ package manifest plus the candidate, so this Rytm catalog addition is outside
 that count. This report remains bound to checkout `91d8d493` and tested base
 `3ae8c38d`; it is not a package rebuild at current `upstream/main` `3a7ef107`.
 
+Afterward, PR #1085 advanced `upstream/main` to
+`8aa2afa457b8c5b85c32adec652d275e6024a9b1`. It adds plain/send-bus base
+packages for Analog Rytm and changes the site's shared `machine-build.ts` to
+select a base variant for `analog-rytm-mkii`. The variant filter is registered
+only for Rytm; `octatrack` has no entry and retains the unchanged catalogue
+path. The pinned Elekloader kit/tool source, Octatrack package builder,
+reconstruction recipe and candidate source did not change. After merging,
+`npm run prepare` and `node scripts/elekloader-vendor.ts` checked catalog
+revision `e249c55` (10 cores, 58 mods, 69 assets). The original package result
+still binds only to checkout `91d8d493` and base `3ae8c38d`; it is not silently
+rolled forward to `8aa2afa4`.
+
 This closes only the production package-path and USB software-integration
 check. It adds no hardware result, simultaneous-companion result, cycle bound,
 complete stack/memory bound, measured CPU budget, or edited-pattern persistence
